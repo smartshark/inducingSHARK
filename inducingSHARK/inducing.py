@@ -323,7 +323,7 @@ class InducingMiner:
                         # 'inducing_strategy': inducing_strategy,
                         # 'java_only': java_only,
                         # 'affected_versions': affected_versions,
-                        'name': name}
+                        'label': name}
 
             # we clear everything with this label beforehand because we may re-run this plugin with a different label or strategy
             # new_list = []
