@@ -172,7 +172,7 @@ class InducingMiner:
 
         self._version_dates = self._collect_version_dates()
 
-    def _find_boundary_date(self, issue_ids, version_dates):
+    def _find_boundary_date(self, issue_ids, version_dates, affected_versions):
         """Find suspect boundary date.
 
         latest issue information but earliest date in commit (between created_at and affected versions)
@@ -202,8 +202,8 @@ class InducingMiner:
         latest_issue = sorted(reporting_dates, key=lambda x: x[0])[-1]
         suspect_boundary_date = latest_issue[0]
 
-        # return earliest affected version
-        if latest_issue[1]:
+        # return earliest affected version, only if we want
+        if affected_versions and latest_issue[1]:
             suspect_boundary_date = min(latest_issue[1])
 
         return suspect_boundary_date
@@ -241,7 +241,7 @@ class InducingMiner:
                 version_dates[av].append(dt)
         return version_dates
 
-    def write_bug_inducing(self, label='validated_bugfix', inducing_strategy='code_only', java_only=True):
+    def write_bug_inducing(self, label='validated_bugfix', inducing_strategy='code_only', java_only=True, affected_versions=False, name=None):
 
         # 1. get all commits that are bug-fixing
         # 2. run blame for all commits to find bug-inducing
@@ -265,9 +265,9 @@ class InducingMiner:
                     continue
 
                 if label == 'validated_bugfix':
-                    suspect_boundary_date = self._find_boundary_date(bugfix_commit.fixed_issue_ids, self._version_dates)
+                    suspect_boundary_date = self._find_boundary_date(bugfix_commit.fixed_issue_ids, self._version_dates, affected_versions)
                 elif label == 'adjustedszz_bugfix':
-                    suspect_boundary_date = self._find_boundary_date(bugfix_commit.szz_issue_ids, self._version_dates)
+                    suspect_boundary_date = self._find_boundary_date(bugfix_commit.szz_issue_ids, self._version_dates, affected_versions)
                 else:
                     raise Exception('unknown label')
 
@@ -317,19 +317,22 @@ class InducingMiner:
                 szz_type = new_types[change]
 
             to_write = {'change_file_action_id': values['change_file_action_id'],
-                        'label': values['label'],
-                        'inducing_strategy': inducing_strategy,
                         'szz_type': szz_type,
-                        'java_only': True}
+                        # these values are defined by the name
+                        # 'label': values['label'],
+                        # 'inducing_strategy': inducing_strategy,
+                        # 'java_only': java_only,
+                        # 'affected_versions': affected_versions,
+                        'name': name}
 
             # we clear everything with this label beforehand because we may re-run this plugin with a different label or strategy
-            new_list = []
-            for d in fa.induces:
-                if d['label'] != label or d['inducing_strategy'] != inducing_strategy or d['java_only'] != java_only:  # keep values not matching our stuff
-                    new_list.append(d)
+            # new_list = []
+            # for d in fa.induces:
+            #     if d['label'] != label or d['inducing_strategy'] != inducing_strategy or d['java_only'] != java_only:  # keep values not matching our stuff
+            #         new_list.append(d)
 
-            fa.induces = new_list
-            # fa.induces = []  # this deletes everything, also previous runs with a different label
+            # fa.induces = new_list
+            fa.induces = []  # this deletes everything, also previous runs with a different label
 
             if to_write not in fa.induces:
                 fa.induces.append(to_write)

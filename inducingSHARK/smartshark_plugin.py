@@ -33,18 +33,14 @@ def main(args):
 
     im = InducingMiner(log, args.db_database, args.db_user, args.db_password, args.db_hostname, args.db_port, args.db_authentication, args.ssl, args.project_name, args.repository_url, args.input)
     im.collect()
-    set1 = {'label': 'validated_bugfix', 'inducing_strategy': 'code_only'}
-    set2 = {'label': 'adjustedszz_bugfix', 'inducing_strategy': 'all'}
 
-    for kwargs in [set1, set2]:
-        for java_only in [True, False]:
-            tmp = kwargs
-            tmp.update({'java_only': java_only})
-            print('running set:', tmp)
-            # im.write_bug_inducing(**tmp)
+    # everything with label='validated_bugfix' uses commit.fixed_issue_ids
+    # szz uses commit.szz_issue_ids
+    im.write_bug_inducing(label='adjustedszz_bugfix', inducing_strategy='all', java_only=False, affected_versions=False, name='SZZ')  # plain szz
+    im.write_bug_inducing(label='validated_bugfix', inducing_strategy='all', java_only=False, affected_versions=False, name='JLMIV')  # plain szz validated labels
+    im.write_bug_inducing(label='validated_bugfix', inducing_strategy='code_only', java_only=True, affected_versions=False, name='JLMIV+')  # improved szz validated labels
+    im.write_bug_inducing(label='validated_bugfix', inducing_strategy='code_only', java_only=True, affected_versions=True, name='JLMIV++')  # improves szz validated labels, affected versions
 
-    im.write_bug_inducing(label='adjustedszz_bugfix', inducing_strategy='all', java_only=True)
-    im.write_bug_inducing(label='adjustedszz_bugfix', inducing_strategy='all', java_only=False)
     end = timeit.default_timer() - start
     log.info("Finished inducingSHARK extraction in {:.5f}s".format(end))
 
