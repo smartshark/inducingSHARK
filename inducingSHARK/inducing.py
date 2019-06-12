@@ -171,6 +171,14 @@ class InducingMiner:
         self._cg.collect()
 
         self._version_dates = self._collect_version_dates()
+        self._clear_inducing()
+
+    def _clear_inducing(self):
+        self._log.info('setting all FileAction.induces to []')
+        for c in Commit.objects.filter(vcs_system_id=self._vcs_id).only('id'):
+            for fa in FileAction.objects.filter(commit_id=c.id):
+                fa.induces = []  # this deletes everything, also previous runs with a different label
+                fa.save()
 
     def _find_boundary_date(self, issue_ids, version_dates, affected_versions):
         """Find suspect boundary date.
@@ -180,31 +188,39 @@ class InducingMiner:
         - späteste creation date of linked bugs
         - früheste affected version
         """
-        reporting_dates = []
+
+        issue_dates = []
+        affected_version_dates = []
         for issue_id in issue_ids:
             issue = Issue.objects.get(id=issue_id)
 
             if not issue.created_at:
-                print('no reporting date for {} id({})'.format(issue.external_id, issue.id))
+                self._log.warn('no reporting date for {} id({}), ignoring it'.format(issue.external_id, issue.id))
                 continue
 
-            affected_version_dates = []
             for av in issue.affects_versions:
                 avt = tuple(av.split('.'))
                 if avt in version_dates.keys():
-                    affected_version_dates += version_dates[avt]
-                else:
-                    print('affected version {} not found'.format(avt))
 
-            reporting_dates.append((issue.created_at, affected_version_dates))
+                    for version_date in version_dates[avt]:
+                        if version_date not in affected_version_dates:
+                            affected_version_dates.append(version_date)
+                else:
+                    self._log.warn('affected version {} not found'.format(avt))
+
+            issue_dates.append(issue.created_at)
 
         # find latest bug report
-        latest_issue = sorted(reporting_dates, key=lambda x: x[0])[-1]
-        suspect_boundary_date = latest_issue[0]
+        suspect_boundary_date = max(issue_dates)
+
+        # latest bug report
+        self._log.debug('latest bug report date is {} of {}'.format(suspect_boundary_date, issue_dates))
 
         # return earliest affected version, only if we want
-        if affected_versions and latest_issue[1]:
-            suspect_boundary_date = min(latest_issue[1])
+        if affected_versions and affected_version_dates:
+            min_affected_date = min(affected_version_dates)
+            self._log.debug('affected versions earliest date is {} while max bug report date is {}'.format(min_affected_date, suspect_boundary_date))
+            suspect_boundary_date = min(min_affected_date, suspect_boundary_date)
 
         return suspect_boundary_date
 
@@ -250,8 +266,15 @@ class InducingMiner:
         params = {
             'vcs_system_id': self._vcs_id,
             'labels__{}'.format(label): True,
-            'parents__1__exists': False
+            'parents__1__exists': False,
         }
+
+        if label == 'validated_bugfix':
+            params['fixed_issue_ids__0__exists'] = True
+        elif label == 'adjustedszz_bugfix':
+            params['szz_issue_ids__0__exists'] = True
+        else:
+            raise Exception('unknown label')
 
         all_changes = {}
         for bugfix_commit in Commit.objects.filter(**params).only('revision_hash', 'id', 'fixed_issue_ids', 'szz_issue_ids', 'committer_date').timeout(False):
@@ -275,13 +298,19 @@ class InducingMiner:
                 for blame_commit, original_file in self._cg.blame(bugfix_commit.revision_hash, f.path, inducing_strategy):
                     blame_c = Commit.objects.get(vcs_system_id=self._vcs_id, revision_hash=blame_commit)
 
+                    # every commit before our suspect boundary date is counted towards inducing
                     if blame_c.committer_date < suspect_boundary_date:
                         szz_type = 'inducing'
+
+                    # every commit behind our boundary date is counted towards suspects
                     elif blame_c.committer_date >= suspect_boundary_date:
                         szz_type = 'suspect'
-                        if label in blame_c.labels:
+
+                        # if the suspect commit is also a bug-fix it is a partial fix
+                        if label in blame_c.labels.keys() and blame_c.labels[label] is True:
                             szz_type = 'partial_fix'
 
+                    self._log.debug('blame commit date {} against boundary date {}, szz_type {}'.format(blame_c.committer_date, suspect_boundary_date, szz_type))
                     for blame_fa in FileAction.objects.filter(commit_id=blame_c.id):
                         blame_f = File.objects.get(id=blame_fa.file_id)
 
@@ -293,11 +322,15 @@ class InducingMiner:
 
         # second run differenciate between hard and weak suspects
         new_types = {}
+        self._log.debug('starting second pass for distinguish hard and weak suspects')
         for change, values in all_changes.items():
+
+            # every suspect starts as hard_suspect
             szz_type = 'hard_suspect'
             if values['szz_type'] == 'suspect':
 
                 # is there a fix for this change which is not a suspect (which means it has to be a partial-fix or inducing)
+                # we set this type to weak_suspect
                 for change2, values2 in all_changes.items():
 
                     # skip equal
@@ -306,9 +339,11 @@ class InducingMiner:
 
                     if values2['inducing_file_action'] == values['inducing_file_action'] and values2['szz_type'] != 'suspect':
                         szz_type = 'weak_suspect'
+                        self._log.debug('found another inducing change for this inducing change which is not a suspect, we set szz_type to weak_suspect')
                 new_types[change] = szz_type
 
         # write results
+        self._log.debug('writing results')
         for change, values in all_changes.items():
             fa = FileAction.objects.get(id=values['inducing_file_action'])
 
@@ -325,6 +360,7 @@ class InducingMiner:
                         # 'affected_versions': affected_versions,
                         'label': name}
 
+            self._log.debug(to_write)
             # we clear everything with this label beforehand because we may re-run this plugin with a different label or strategy
             # new_list = []
             # for d in fa.induces:
@@ -332,7 +368,7 @@ class InducingMiner:
             #         new_list.append(d)
 
             # fa.induces = new_list
-            fa.induces = []  # this deletes everything, also previous runs with a different label
+            # fa.induces = []  # this deletes everything, also previous runs with a different label
 
             if to_write not in fa.induces:
                 fa.induces.append(to_write)
