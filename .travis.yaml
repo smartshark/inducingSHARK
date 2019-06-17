@@ -1,0 +1,32 @@
+sudo: required
+language: python
+python:
+  - "3.6"
+
+before_install:
+  - mkdir libgit2
+  - cd libgit2
+  - wget https://github.com/libgit2/libgit2/archive/v0.26.2.tar.gz
+  - tar xzf v0.26.2.tar.gz
+  - cmake libgit2-0.26.2/
+  - make
+  - sudo make install
+  - cd ..
+
+install:
+  - python setup.py install
+
+script:
+  - python setup.py test
+
+after_success:
+  - cd plugin_packaging && ./build_plugin.sh && cd ..
+
+deploy:
+  - provider: releases
+    api_key: ${GH_TOKEN}
+    file: "plugin_packaging/inducingSHARK_plugin.tar"
+    skip_cleanup: true
+    on:
+      repo: smartshark/inducingSHARK
+      tags: true
