@@ -4,18 +4,8 @@
 import unittest
 import subprocess
 import tempfile
-import os
-import math
-import logging
-import sys
-import pprint
-
-from datetime import datetime
 
 from inducingSHARK.util.git import CollectGit
-
-logger = logging.getLogger()
-logger.level = logging.DEBUG
 
 
 class TestGit(unittest.TestCase):
@@ -35,7 +25,7 @@ class TestGit(unittest.TestCase):
 
             # last is top
             last = lines[0].split(' ')[0].replace('"', '')
-            first = lines[-2].split(' ')[0].replace('"', '')  # last is \n therefore we want the second from last in the output
+            # first = lines[-2].split(' ')[0].replace('"', '')  # last is \n therefore we want the second from last in the output
 
             # pprint.pprint(lines)
 
@@ -62,7 +52,7 @@ class TestGit(unittest.TestCase):
 
             # last is top
             last = lines[0].split(' ')[0].replace('"', '')
-            first = lines[-2].split(' ')[0].replace('"', '')  # last is \n therefore we want the second from last in the output
+            # first = lines[-2].split(' ')[0].replace('"', '')  # last is \n therefore we want the second from last in the output
 
             commits = cg.blame(last, 'test1.py')
 

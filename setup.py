@@ -12,7 +12,7 @@ setup(
     name='inducingSHARK',
     version='0.0.1',
     description='Find bug-inducing commits.',
-    install_requires=['pycoshark>=1.0.28', 'pygit2==0.28.2'],
+    install_requires=['pycoshark>=1.0.28', 'pygit2==0.26.2'],
     author='atrautsch',
     author_email='alexander.trautsch@stud.uni-goettingen.de',
     url='https://github.com/smartshark/inducingSHARK',
