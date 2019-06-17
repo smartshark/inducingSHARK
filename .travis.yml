@@ -15,6 +15,7 @@ before_install:
 
 install:
   - python setup.py install
+  - sudo ldconfig
 
 script:
   - python setup.py test
