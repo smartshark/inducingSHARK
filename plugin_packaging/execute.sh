@@ -5,7 +5,7 @@ NEW_UUID=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1)
 
 cp -R $REPOSITORY_PATH "/dev/shm/$NEW_UUID" || exit 1
 
-COMMAND="python3.5 $PLUGIN_PATH/smartshark_plugin.py --project-name ${3} --repository_url ${4} --db-hostname ${5} --db-port ${6} --db-database ${7} --input /dev/shm/$NEW_UUID"
+COMMAND="python3.5 $PLUGIN_PATH/smartshark_plugin.py --project-name ${3} --repository-url ${4} --db-hostname ${5} --db-port ${6} --db-database ${7} --input /dev/shm/$NEW_UUID"
 
 if [ ! -z ${8+x} ] && [ ${8} != "None" ]; then
     COMMAND="$COMMAND --db-user ${8}"

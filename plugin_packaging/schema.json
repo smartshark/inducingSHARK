@@ -12,6 +12,7 @@
                     "sub_type": "StructType",
                     "type": "ArrayType",
                     "field_name": "induces",
+                    "logical_type": "List",
                     "desc": "List of file actions this file action induces.",
                     "fields": [
                         {
