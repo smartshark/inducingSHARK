@@ -1,6 +1,6 @@
 # inducingSHARK
 
-Find probable bug-inducing commits for smartSHARK.
+Find probable bug-inducing commits for SmartSHARK.
 InducingSHARK first collects bug-fixing commits labeled by different strategies then it uses Git blame to find probable inducing commits from the last change of the bug-fixing commit.
 
 It saves links to the changed commit for its inducing file actions to the FileAction Collection.
