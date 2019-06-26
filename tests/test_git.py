@@ -27,8 +27,6 @@ class TestGit(unittest.TestCase):
             last = lines[0].split(' ')[0].replace('"', '')
             # first = lines[-2].split(' ')[0].replace('"', '')  # last is \n therefore we want the second from last in the output
 
-            # pprint.pprint(lines)
-
             commits = cg.blame(last, 'test2.py')
 
             # we get the old name

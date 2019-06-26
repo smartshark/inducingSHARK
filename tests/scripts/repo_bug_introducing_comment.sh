@@ -11,9 +11,8 @@ export GIT_AUTHOR_DATE="2018-01-01 03:01:01 +0200"
 
 cat << EOF > ./test2.py
 def c():
-    passABCDCEF
+    //passABCDCEFZ
     pass
-    # passZYXQRW
 EOF
 
 git add test2.py
@@ -25,9 +24,8 @@ export GIT_AUTHOR_DATE="2018-01-03 03:01:01 +0200"
 
 cat << EOF > ./test2.py
 def c():
-    passABCDCEF
+    //passABCDCEFZ
     print('hallo Welt')
-    # hallo welt
 EOF
 
 git add test2.py
@@ -42,7 +40,6 @@ cat << EOF > ./test2.py
 def c():
     passABCDCEF
     pass
-    # hallo weltabcdef
 EOF
 
 git add test2.py
