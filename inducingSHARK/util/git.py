@@ -21,6 +21,10 @@ class CollectGit(object):
     This does not scale because we hold a lot of data in memory.
     """
 
+    _regex_comment = re.compile(r"(//[^\"\n\r]*(?:\"[^\"\n\r]*\"[^\"\n\r]*)*[\r\n]|/\*([^*]|\*(?!/))*?\*/)(?=[^\"]*(?:\"[^\"]*\"[^\"]*)*$)")
+    _regex_jdoc_line = re.compile(r"(- |\+)\s*(\*|/\*).*")
+    _regex_test_example = re.compile(r"^test/|^examples?/|.*/test/|.*/examples?/", re.I)
+
     def __init__(self, path):
         if not path.endswith('.git'):
             if not path.endswith('/'):
@@ -61,9 +65,6 @@ class CollectGit(object):
                 raise Exception(err)
         return repo_path
 
-    def write_graphml(self, path):
-        nx.write_graphml(self._graph, path)
-
     def _changed_lines(self, hunk):
         added_lines = []
         deleted_lines = []
@@ -88,6 +89,20 @@ class CollectGit(object):
 
         return added_lines, deleted_lines
 
+    def _comment_only_change(self, content):
+        content = content + '\n'  # required for regex to drop comments
+        content = re.sub(self._regex_comment, "", content)
+        content = re.sub(r"\s+", " ", content, flags=re.UNICODE)  # replace all kinds of whitespaces (also multiple) with sińgle whitespace
+        removed = ''
+        added = ''
+        for line in content.split('\n'):
+            if not re.match(self._regex_jdoc_line, line):
+                if line.startswith('-'):
+                    removed += line[1:].strip()
+                elif line.startswith('+'):
+                    added += line[1:].strip()
+        return removed == added
+
     def _blame_lines(self, revision_hash, filepath, strategy):
         """We want to find changed lines for one file in one commit (from the previous commit).
 
@@ -100,6 +115,11 @@ class CollectGit(object):
 
         for h in self._hunks[revision_hash]:
             if h['new_file'] != filepath:
+                continue
+
+            # only whitespace or comment changes in the hunk, ignore
+            if strategy == 'code_only' and self._comment_only_change(h['content']):
+                self._log.debug('detected whitepace or comment only change in {} for {}'.format(revision_hash, filepath))
                 continue
 
             added, deleted = self._changed_lines(h)
@@ -123,6 +143,16 @@ class CollectGit(object):
         """
         commits = []
 
+        # - ignore package-info.java
+        if strategy == 'code_only' and filepath.lower().endswith('package-info.java'):
+            self._log.debug('skipping blame on revision: {} for file {} because it is package-info.java'.format(revision_hash, filepath))
+            return []
+
+        # - ignore test/ /test/ example/ examples/
+        if strategy == 'code_only' and re.match(self._regex_test_example, filepath):
+            self._log.debug('skipping blame on revision: {} for file {} because it is a test or an example'.format(revision_hash, filepath))
+            return []
+
         # bail on multiple parents
         parents = list(self._graph.predecessors(revision_hash))
         if len(parents) > 1:
@@ -131,8 +161,6 @@ class CollectGit(object):
 
         changed_lines = self._blame_lines(revision_hash, filepath, strategy)
         parent_commit = self._repo.revparse_single('{}^'.format(revision_hash))
-
-        # print(changed_lines)
 
         blame = self._repo.blame(filepath, flags=GIT_BLAME_TRACK_COPIES_SAME_FILE, newest_commit=parent_commit.hex)
         for lineno, line in changed_lines:

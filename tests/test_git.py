@@ -4,11 +4,55 @@
 import unittest
 import subprocess
 import tempfile
+import re
 
 from inducingSHARK.util.git import CollectGit
 
 
 class TestGit(unittest.TestCase):
+
+    def test_comment_regexes(self):
+        positives = [
+            '// single line comment',
+            'code // end of line comment',
+            'code /* end of line comment */',
+        ]
+
+        negatives = [
+            '"// string literal line comment"',
+            'code "/*string literal line comment*/"'
+        ]
+
+        for pos in positives:
+            a1 = re.findall(r"(//[^\"\n\r]*(?:\"[^\"\n\r]*\"[^\"\n\r]*)*[\r\n]|/\*([^*]|\*(?!/))*?\*/)(?=[^\"]*(?:\"[^\"]*\"[^\"]*)*$)", pos + "\n")
+            self.assertNotEqual(a1, [])
+
+        for neg in negatives:
+            a1 = re.findall(CollectGit._regex_comment, neg + "\n")
+            self.assertEqual(a1, [])
+
+    def test_excluding_file_regexes(self):
+        positives = [
+            'src/java/test/org/apache/commons/Test.java',
+            'test/examples/org/apache/commons/Test.java',
+            'examples/org/apache/commons/Test.java',
+            'example/org/apache/commons/Test.java',
+            'src/examples/org/apache/commons/Test.java',
+            'src/example/org/apache/commons/Test.java',
+        ]
+
+        negatives = [
+            'src/java/main/org/apache/commons/Test.java',
+            'src/java/main/Example.java',
+        ]
+
+        for pos in positives:
+            a1 = re.match(CollectGit._regex_test_example, pos)
+            self.assertNotEqual(a1, None)
+
+        for neg in negatives:
+            a1 = re.match(CollectGit._regex_test_example, neg)
+            self.assertEqual(a1, None)
 
     def test_bug_introducing_comment(self):
         with tempfile.TemporaryDirectory() as tmpdirname:

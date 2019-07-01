@@ -185,8 +185,8 @@ class InducingMiner:
 
         latest issue information but earliest date in commit (between created_at and affected versions)
 
-        - späteste creation date of linked bugs
-        - früheste affected version
+        - latest creation date of linked bugs
+        - earliest affected version
         """
 
         issue_dates = []
@@ -227,18 +227,18 @@ class InducingMiner:
     def _collect_version_dates(self):
         """Match affected versions from the ITS to tag names from the VCS.
 
-        3.0.0 from its matches 3.0.0 from vcs
-        3.0 from its matches all of 3.0.X from vcs
+        3.0.0 from ITS matches 3.0.0 from VCS
+        3.0 from ITS matches all of 3.0.X from VCS
         """
         tags = tag_filter(self._project_name, Tag.objects.filter(vcs_system_id=self._vcs_id), discard_qualifiers=True, discard_patch=False, discard_fliers=False)
 
-        # collect tags and their version and date used in this vcs system
+        # collect tags and their version and date used in this VCS system
         tag_versions = {}
         for t in tags:
             c = Commit.objects.get(vcs_system_id=self._vcs_id, revision_hash=t['revision'])
             tag_versions[tuple([str(tv) for tv in t['version']])] = c.committer_date
 
-        # collect affected versions used in this issue system
+        # collect affected versions used in this ITS
         affected_versions = set()
         for i in Issue.objects.filter(issue_system_id=self._its_id):
             for av in i.affects_versions:
@@ -258,11 +258,12 @@ class InducingMiner:
         return version_dates
 
     def write_bug_inducing(self, label='validated_bugfix', inducing_strategy='code_only', java_only=True, affected_versions=False, name=None):
+        """Write bug inducing information into FileAction.
 
-        # 1. get all commits that are bug-fixing
-        # 2. run blame for all commits to find bug-inducing
-        # 3. save to mongo_db
-
+        1. get all commits that are bug-fixing
+        2. run blame for all files for all deleted lines in bug-fixing commits to find bug-inducing file actions and commits
+        3. save to mongo_db
+        """
         params = {
             'vcs_system_id': self._vcs_id,
             'labels__{}'.format(label): True,
