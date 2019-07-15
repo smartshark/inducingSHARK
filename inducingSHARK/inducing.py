@@ -2,154 +2,14 @@
 
 from mongoengine import connect
 
-from pycoshark.mongomodels import Project, VCSSystem, File, Commit, FileAction, Tag, Issue, IssueSystem, Event
-from pycoshark.utils import create_mongodb_uri_string
-
+from pycoshark.mongomodels import Project, VCSSystem, File, Commit, FileAction, Issue, IssueSystem
+from pycoshark.utils import create_mongodb_uri_string, git_tag_filter, get_affected_versions, java_filename_filter, jira_is_resolved_and_fixed
 
 from util.git import CollectGit
 
 
-import re
-import math
-
-
-def tag_filter(project_name, tags, discard_qualifiers=True, discard_patch=False, discard_fliers=False):
-    versions = []
-
-    # qualifiers are expected at the end of the tag and they may have a number attached
-    # it is very important for the b to be at the end otherwise beta would already be matched!
-    qualifiers = ['rc', 'alpha', 'beta', 'b']
-
-    # separators are expected to divide 2 or more numbers
-    separators = ['.', '_', '-']
-
-    for t in tags:
-
-        tag = t.name
-        c = Commit.objects.get(id=t.commit_id)
-
-        qualifier = ''
-        remove_qualifier = ''
-        for q in qualifiers:
-            if q in tag.lower():
-                tmp = tag.lower().split(q)
-                if tmp[-1].isnumeric():
-                    qualifier = [q, tmp[-1]]
-                    remove_qualifier = ''.join(qualifier)
-                    break
-                else:
-                    qualifier = [q]
-                    remove_qualifier = q
-                    break
-
-        # if we have a qualifier we remove it before we check for best number seperator
-        tmp = tag.lower()
-        if qualifier:
-            tmp = tmp.split(remove_qualifier)[0]
-
-        # we only want numbers and separators
-        version = re.sub(project_name, '', tmp)
-        version = re.sub('[a-z]', '', version)
-
-        # the best separator is the one separating the most numbers
-        best = -1
-        best_sep = None
-        for sep in separators:
-            current = 0
-            for v in version.split(sep):
-                v = ''.join(c for c in v if c.isdigit())
-                if v.isnumeric():
-                    current += 1
-
-            if current > best:
-                best = current
-                best_sep = sep
-
-        version = version.split(best_sep)
-        final_version = []
-        for v in version:
-            v = ''.join(c for c in v if c.isdigit())
-            if v.isnumeric():
-                final_version.append(int(v))
-
-        # if we have a version we append it to our list
-        if final_version:
-
-            # force semver because we are sorting
-            if len(final_version) == 1:
-                final_version.append(0)
-            if len(final_version) == 2:
-                final_version.append(0)
-
-            fversion = {'version': final_version, 'original': tag, 'revision': c.revision_hash}
-            if qualifier:
-                fversion['qualifier'] = qualifier
-
-            versions.append(fversion)
-
-    # discard fliers
-    p_version = [int(v['version'][0]) for v in versions]
-    sort = sorted(p_version)
-    a = 0.25 * len(sort)
-    b = 0.75 * len(sort)
-    if a.is_integer():
-        a = int(a)  # otherwise could be 6.0
-        x_025 = ((sort[a] + sort[a + 1]) / 2)
-    else:
-        x_025 = sort[math.floor(a) + 1]
-
-    if b.is_integer():
-        b = int(b)
-        x_075 = ((sort[b] + sort[b + 1]) / 2)
-    else:
-        x_075 = sort[math.floor(b) + 1]
-
-    iqr = x_075 - x_025
-    flyer_lim = 1.5 * iqr
-
-    # then we want to know if we have any fliers
-    ret1 = []
-    for version in versions:
-        major = int(version['version'][0])
-
-        tmp = version.copy()
-
-        # # no fliers in final list
-        if major > (x_075 + flyer_lim) or major < (x_025 - flyer_lim):
-            tmp['flier'] = True
-
-        ret1.append(tmp)
-
-    ret = []
-    for version in ret1:
-        if discard_fliers and 'flier' in version.keys():
-            continue
-
-        if discard_qualifiers and 'qualifier' in version.keys():
-            continue
-
-        ret.append(version)
-
-    # sort remaining
-    s = sorted(ret, key=lambda x: (x['version'][0], x['version'][1], x['version'][2]))
-
-    ret = []
-    for v in s:
-        # only minor, we discard patch releases (3rd in semver, everything after 2nd in other schemas)
-        if discard_patch:
-            if len(v['version']) > 2:
-                del v['version'][2:]
-
-        if v['version'] not in [v2['version'] for v2 in ret]:
-            ret.append(v)
-
-    return ret
-
-
 class InducingMiner:
-    """
-    Mining of inducing commits with the help of CollectGit and blame
-    """
+    """Mine inducing commits with the help of CollectGit and blame."""
 
     def __init__(self, logger, database, user, password, host, port, authentication, ssl, project_name, vcs_url, repo_path):
         self._log = logger
@@ -165,8 +25,10 @@ class InducingMiner:
 
         self._vcs_id = vcs.id
         self._its_id = its.id
+        self._jira_key = its.url.split('project=')[-1]
 
     def collect(self):
+        """Collect inducing commits and write them to the database."""
         self._cg = CollectGit(self._repo_path)
         self._cg.collect()
 
@@ -174,10 +36,11 @@ class InducingMiner:
         self._clear_inducing()
 
     def _clear_inducing(self):
+        """Delete all inducing information from the dtabse for the chosen project."""
         self._log.info('setting all FileAction.induces to []')
         for c in Commit.objects.filter(vcs_system_id=self._vcs_id).only('id'):
             for fa in FileAction.objects.filter(commit_id=c.id):
-                fa.induces = []  # this deletes everything, also previous runs with a different label
+                fa.induces = []  # this deletes everything, including previous runs with a different label
                 fa.save()
 
     def _find_boundary_date(self, issue_ids, version_dates, affected_versions):
@@ -188,11 +51,13 @@ class InducingMiner:
         - latest creation date of linked bugs
         - earliest affected version
         """
-
         issue_dates = []
         affected_version_dates = []
         for issue_id in issue_ids:
             issue = Issue.objects.get(id=issue_id)
+
+            if not jira_is_resolved_and_fixed(issue):
+                continue
 
             if not issue.created_at:
                 self._log.warn('no reporting date for {} id({}), ignoring it'.format(issue.external_id, issue.id))
@@ -230,7 +95,7 @@ class InducingMiner:
         3.0.0 from ITS matches 3.0.0 from VCS
         3.0 from ITS matches all of 3.0.X from VCS
         """
-        tags = tag_filter(self._project_name, Tag.objects.filter(vcs_system_id=self._vcs_id), discard_qualifiers=True, discard_patch=False, discard_fliers=False)
+        tags = git_tag_filter(self._project_name, discard_patch=False, discard_broken_dates=True)
 
         # collect tags and their version and date used in this VCS system
         tag_versions = {}
@@ -241,8 +106,8 @@ class InducingMiner:
         # collect affected versions used in this ITS
         affected_versions = set()
         for i in Issue.objects.filter(issue_system_id=self._its_id):
-            for av in i.affects_versions:
-                affected_versions.add(tuple(av.split('.')))
+            for av in get_affected_versions(i, self._project_name, self._jira_key):
+                affected_versions.add(tuple(av))
 
         # map affected versions to possible dates
         version_dates = {}
@@ -285,7 +150,7 @@ class InducingMiner:
                 f = File.objects.get(id=fa.file_id)
 
                 # only java files
-                if java_only and not f.path.lower().endswith('.java'):
+                if java_only and not java_filename_filter(f.path.lower()):
                     continue
 
                 if label == 'validated_bugfix':
