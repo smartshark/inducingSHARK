@@ -46,7 +46,7 @@ class InducingMiner:
                 fa.induces = []  # this deletes everything, including previous runs with a different label
                 fa.save()
 
-    def _find_boundary_date(self, issue_ids, version_dates, affected_versions):
+    def _find_boundary_date(self, issues, version_dates, affected_versions):
         """Find suspect boundary date.
 
         latest issue information but earliest date in commit (between created_at and affected versions)
@@ -56,11 +56,7 @@ class InducingMiner:
         """
         issue_dates = []
         affected_version_dates = []
-        for issue_id in issue_ids:
-            issue = Issue.objects.get(id=issue_id)
-
-            if not jira_is_resolved_and_fixed(issue):
-                continue
+        for issue in issues:
 
             if not issue.created_at:
                 self._log.warn('no reporting date for {} id({}), ignoring it'.format(issue.external_id, issue.id))
@@ -162,11 +158,26 @@ class InducingMiner:
                     continue
 
                 if label == 'validated_bugfix':
-                    suspect_boundary_date = self._find_boundary_date(bugfix_commit.fixed_issue_ids, self._version_dates, affected_versions)
+                    fixed_issue_ids = bugfix_commit.fixed_issue_ids
                 elif label == 'adjustedszz_bugfix':
-                    suspect_boundary_date = self._find_boundary_date(bugfix_commit.szz_issue_ids, self._version_dates, affected_versions)
+                    fixed_issue_ids = bugfix_commit.szz_issue_ids
                 else:
                     raise Exception('unknown label')
+
+                # only issues that are really closed and fixed:
+                issues = []
+                for issue_id in fixed_issue_ids:
+                    issue = Issue.objects.get(id=issue_id)
+
+                    if not jira_is_resolved_and_fixed(issue):
+                        continue
+                    issues.append(issue)
+
+                if not issues:
+                    self._log.warn('skipping commit {} as none of its issue_ids {} are closed/fixed/resolved'.format(bugfix_commit.revision_hash, fixed_issue_ids))
+                    continue
+
+                suspect_boundary_date = self._find_boundary_date(issues, self._version_dates, affected_versions)
 
                 # find bug inducing commits, add to our list for this commit and file
                 for blame_commit, original_file in self._cg.blame(bugfix_commit.revision_hash, f.path, inducing_strategy):
