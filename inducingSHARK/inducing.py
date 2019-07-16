@@ -103,7 +103,12 @@ class InducingMiner:
         # collect tags and their version and date used in this VCS system
         tag_versions = {}
         for t in tags:
-            c = Commit.objects.get(vcs_system_id=self._vcs_id, revision_hash=t['revision'])
+            # the tag could point to a revision with a wrong date (e.g., via faulty subversion to git migrations)
+            # in those cases git_tag_filter provides a corrected hash which we can use
+            rev = t['revision']
+            if 'corrected_revision' in t.keys():
+                rev = t['corrected_revision']
+            c = Commit.objects.get(vcs_system_id=self._vcs_id, revision_hash=rev)
             tag_versions[tuple([str(tv) for tv in t['version']])] = c.committer_date
 
         # collect affected versions used in this ITS
