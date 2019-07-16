@@ -23,6 +23,9 @@ class InducingMiner:
         vcs = VCSSystem.objects.get(project_id=pr.id, url=vcs_url)
         its = IssueSystem.objects.get(project_id=pr.id)
 
+        if 'jira' not in its.url:
+            raise Exception('only jira issue systems are supported!')
+
         self._vcs_id = vcs.id
         self._its_id = its.id
         self._jira_key = its.url.split('project=')[-1]
