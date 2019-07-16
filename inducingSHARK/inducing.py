@@ -98,7 +98,7 @@ class InducingMiner:
         3.0.0 from ITS matches 3.0.0 from VCS
         3.0 from ITS matches all of 3.0.X from VCS
         """
-        tags = git_tag_filter(self._project_name, discard_patch=False, discard_broken_dates=True)
+        tags = git_tag_filter(self._project_name, discard_patch=False, correct_broken_tags=True)
 
         # collect tags and their version and date used in this VCS system
         tag_versions = {}
