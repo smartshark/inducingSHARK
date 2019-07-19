@@ -54,6 +54,7 @@ class InducingMiner:
         - latest creation date of linked bugs
         - earliest affected version
         """
+        tags = git_tag_filter(self._project_name, discard_patch=False, correct_broken_tags=True)
         issue_dates = []
         affected_version_dates = []
         for issue in issues:
@@ -62,7 +63,18 @@ class InducingMiner:
                 self._log.warn('no reporting date for {} id({}), ignoring it'.format(issue.external_id, issue.id))
                 continue
 
+            # direct link match
             for av in issue.affects_versions:
+                for tag in tags:
+                    if av.lower() == tag['original'].lower():
+                        rev = tag['revision']
+                        if 'corrected_revision' in tag.keys():
+                            rev = tag['corrected_revision']
+
+                        c = Commit.objects(vcs_system_id=self._vcs_id, revision_hash=rev).only('committer_date').get()
+                        affected_version_dates.append(c.committer_date)
+
+            for av in get_affected_versions(issue, self._project_name, self._jira_key):
                 avt = tuple(av.split('.'))
                 if avt in version_dates.keys():
 
