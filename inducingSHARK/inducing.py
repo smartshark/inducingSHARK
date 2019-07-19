@@ -75,7 +75,7 @@ class InducingMiner:
                         affected_version_dates.append(c.committer_date)
 
             for av in get_affected_versions(issue, self._project_name, self._jira_key):
-                avt = tuple(av.split('.'))
+                avt = tuple(av)
                 if avt in version_dates.keys():
 
                     for version_date in version_dates[avt]:
