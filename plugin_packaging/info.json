@@ -1,7 +1,7 @@
 {
     "name": "inducingSHARK",
     "author": "Alexander Trautsch",
-    "version": "0.0.1",
+    "version": "1.0.0",
     "plugin_type": "repo",
     "description": "Find probable bug-inducing commits via git blame",
     "linux_libraries": [],
