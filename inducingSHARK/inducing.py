@@ -60,10 +60,10 @@ class InducingMiner:
         for issue in issues:
 
             if not issue.created_at:
-                self._log.warn('no reporting date for {} id({}), ignoring it'.format(issue.external_id, issue.id))
+                self._log.warn('no reporting date for issue {} id({}), ignoring it'.format(issue.external_id, issue.id))
                 continue
 
-            # direct link match
+            # direct link match, broken dates are already filtered in pycoshark so we do not need to do that here
             for av in issue.affects_versions:
                 for tag in tags:
                     if av.lower() == tag['original'].lower():
@@ -73,6 +73,7 @@ class InducingMiner:
 
                         c = Commit.objects(vcs_system_id=self._vcs_id, revision_hash=rev).only('committer_date').get()
                         affected_version_dates.append(c.committer_date)
+                        self._log.debug('found direct link between tag: {} and affected version: {} using '.format(tag['original'], av))
 
             for av in get_affected_versions(issue, self._project_name, self._jira_key):
                 avt = tuple(av)
@@ -82,7 +83,7 @@ class InducingMiner:
                         if version_date not in affected_version_dates:
                             affected_version_dates.append(version_date)
                 else:
-                    self._log.warn('affected version {} not found'.format(avt))
+                    self._log.warn('affected version {} not found in git tags, skipping'.format(avt))
 
             issue_dates.append(issue.created_at)
 
@@ -98,6 +99,7 @@ class InducingMiner:
             self._log.debug('affected versions earliest date is {} while max bug report date is {}'.format(min_affected_date, suspect_boundary_date))
             suspect_boundary_date = min(min_affected_date, suspect_boundary_date)
 
+        self._log.debug('suspect boundary dates is {} from issue dates: {} and affected_versions: {}, use affected versions? {}'.format(suspect_boundary_date, issue_dates, affected_version_dates, affected_versions))
         return suspect_boundary_date
 
     def _collect_version_dates(self):
