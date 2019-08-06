@@ -143,15 +143,19 @@ class CollectGit(object):
         """
         commits = []
 
-        # - ignore package-info.java
-        if strategy == 'code_only' and filepath.lower().endswith('package-info.java'):
-            self._log.debug('skipping blame on revision: {} for file {} because it is package-info.java'.format(revision_hash, filepath))
+        # - ignore if commit is not in graph
+        if revision_hash not in self._graph:
             return []
 
-        # - ignore test/ /test/ example/ examples/
-        if strategy == 'code_only' and re.match(self._regex_test_example, filepath):
-            self._log.debug('skipping blame on revision: {} for file {} because it is a test or an example'.format(revision_hash, filepath))
-            return []
+        # # - ignore package-info.java
+        # if strategy == 'code_only' and filepath.lower().endswith('package-info.java'):
+        #     self._log.debug('skipping blame on revision: {} for file {} because it is package-info.java'.format(revision_hash, filepath))
+        #     return []
+
+        # # - ignore test/ /test/ example/ examples/
+        # if strategy == 'code_only' and re.match(self._regex_test_example, filepath):
+        #     self._log.debug('skipping blame on revision: {} for file {} because it is a test or an example'.format(revision_hash, filepath))
+        #     return []
 
         # bail on multiple parents
         parents = list(self._graph.predecessors(revision_hash))

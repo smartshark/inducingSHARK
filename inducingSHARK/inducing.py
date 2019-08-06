@@ -164,7 +164,7 @@ class InducingMiner:
         for bugfix_commit in Commit.objects.filter(**params).only('revision_hash', 'id', 'fixed_issue_ids', 'szz_issue_ids', 'committer_date').timeout(False):
 
             # only modified files
-            for fa in FileAction.objects.filter(commit_id=bugfix_commit.id, mode='M'):
+            for fa in FileAction.objects.filter(commit_id=bugfix_commit.id, mode='M').timeout(False):
                 f = File.objects.get(id=fa.file_id)
 
                 # only java files
@@ -210,7 +210,7 @@ class InducingMiner:
                             szz_type = 'partial_fix'
 
                     self._log.debug('blame commit date {} against boundary date {}, szz_type {}'.format(blame_c.committer_date, suspect_boundary_date, szz_type))
-                    for blame_fa in FileAction.objects.filter(commit_id=blame_c.id):
+                    for blame_fa in FileAction.objects.filter(commit_id=blame_c.id).timeout(False):
                         blame_f = File.objects.get(id=blame_fa.file_id)
 
                         if blame_f.path == original_file:
