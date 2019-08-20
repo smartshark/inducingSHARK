@@ -79,6 +79,31 @@ class TestGit(unittest.TestCase):
             self.assertEqual(len(commits), 1)  # we can only find one because we ignore the change of the comment
             self.assertEqual(commits[0], second)  # the middle commit introduced the bug
 
+    def test_bug_introducing_whitespace(self):
+        with tempfile.TemporaryDirectory() as tmpdirname:
+            r = subprocess.run(['/bin/bash', './tests/scripts/repo_bug_introducing_whitespace.sh', '{}'.format(tmpdirname)], stdout=subprocess.PIPE)
+            self.assertEqual(r.returncode, 0)
+
+            # read git information
+            cg = CollectGit(tmpdirname)
+            cg.collect()
+
+            c = subprocess.run(['git', 'log', '--pretty=tformat:"%H %ci"'], cwd=tmpdirname, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            self.assertEqual(c.returncode, 0)
+            lines = c.stdout.decode('utf-8').split('\n')
+
+            # last is top
+            last = lines[0].split(' ')[0].replace('"', '')
+            second = (lines[-3].split(' ')[0].replace('"', ''), 'test2.py')
+
+            first = lines[-2].split(' ')[0].replace('"', '')
+            commits = cg.blame(last, 'test2.py')
+
+            print(lines)
+
+            self.assertEqual(len(commits), 0)  # we do not find a change because we ignore whitespace changes
+            # self.assertEqual(commits[0], first)  # first is introducing, second is skipped because that is a whitespace only change
+
     def test_bug_introducing_rename(self):
         with tempfile.TemporaryDirectory() as tmpdirname:
             r = subprocess.run(['/bin/bash', './tests/scripts/repo_bug_introducing_rename.sh', '{}'.format(tmpdirname)], stdout=subprocess.PIPE)
