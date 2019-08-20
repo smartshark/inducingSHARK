@@ -23,7 +23,6 @@ class CollectGit(object):
 
     _regex_comment = re.compile(r"(//[^\"\n\r]*(?:\"[^\"\n\r]*\"[^\"\n\r]*)*[\r\n]|/\*([^*]|\*(?!/))*?\*/)(?=[^\"]*(?:\"[^\"]*\"[^\"]*)*$)")
     _regex_jdoc_line = re.compile(r"(- |\+)\s*(\*|/\*).*")
-    _regex_test_example = re.compile(r"^test/|^examples?/|.*/test/|.*/examples?/", re.I)
 
     def __init__(self, path):
         if not path.endswith('.git'):
@@ -92,10 +91,10 @@ class CollectGit(object):
     def _comment_only_change(self, content):
         content = content + '\n'  # required for regex to drop comments
         content = re.sub(self._regex_comment, "", content)
-        content = re.sub(r"\s+", " ", content, flags=re.UNICODE)  # replace all kinds of whitespaces (also multiple) with sińgle whitespace
         removed = ''
         added = ''
         for line in content.split('\n'):
+            line = re.sub(r"\s+", " ", line, flags=re.UNICODE)  # replace all kinds of whitespaces (also multiple) with sińgle whitespace
             if not re.match(self._regex_jdoc_line, line):
                 if line.startswith('-'):
                     removed += line[1:].strip()
