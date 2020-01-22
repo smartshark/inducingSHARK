@@ -2,7 +2,7 @@
 
 from mongoengine import connect
 
-from pycoshark.mongomodels import Project, VCSSystem, File, Commit, FileAction, Issue, IssueSystem
+from pycoshark.mongomodels import Project, VCSSystem, File, Commit, FileAction, Issue, IssueSystem, Refactoring, Hunk
 from pycoshark.utils import create_mongodb_uri_string, git_tag_filter, get_affected_versions, java_filename_filter, jira_is_resolved_and_fixed
 
 from util.git import CollectGit
@@ -140,7 +140,23 @@ class InducingMiner:
                 version_dates[av].append(dt)
         return version_dates
 
-    def write_bug_inducing(self, label='validated_bugfix', inducing_strategy='code_only', java_only=True, affected_versions=False, name=None):
+    def refactoring_lines(self, commit_id, file_action_id):
+        """Return lines from one file in one commit which are detected as Refactorings by rMiner.
+        """
+        lines = []
+        for r in Refactoring.objects.filter(commit_id=commit_id, detection_tool='rMiner'):
+            for h in r.hunks:
+                # we skip added refactoring positions as they can not be blamed later
+                if h['mode'].lower() == 'a':
+                    continue
+
+                # todo: only include before refactorings as we only blame (ofc) deleted lines
+                h2 = Hunk.objects.get(id=h['hunk_id'])
+                if h2.file_action_id == file_action_id:
+                    lines.append((h['start_line'], h['end_line']))
+        return lines
+
+    def write_bug_inducing(self, label='validated_bugfix', inducing_strategy='code_only', java_only=True, affected_versions=False, ignore_refactorings=True, name=None):
         """Write bug inducing information into FileAction.
 
         1. get all commits that are bug-fixing
@@ -153,15 +169,18 @@ class InducingMiner:
             'parents__1__exists': False,
         }
 
+        # depending on our label we restrict the selection to commits that contain linked issues in the respective list
         if label == 'validated_bugfix':
             params['fixed_issue_ids__0__exists'] = True
         elif label == 'adjustedszz_bugfix':
             params['szz_issue_ids__0__exists'] = True
+        elif label == 'issueonly_bugfix':
+            params['linked_issue_ids__0__exists'] = True
         else:
             raise Exception('unknown label')
 
         all_changes = {}
-        for bugfix_commit in Commit.objects.filter(**params).only('revision_hash', 'id', 'fixed_issue_ids', 'szz_issue_ids', 'committer_date').timeout(False):
+        for bugfix_commit in Commit.objects.filter(**params).only('revision_hash', 'id', 'fixed_issue_ids', 'szz_issue_ids', 'linked_issue_ids', 'committer_date').timeout(False):
 
             # only modified files
             for fa in FileAction.objects.filter(commit_id=bugfix_commit.id, mode='M').timeout(False):
@@ -175,6 +194,8 @@ class InducingMiner:
                     fixed_issue_ids = bugfix_commit.fixed_issue_ids
                 elif label == 'adjustedszz_bugfix':
                     fixed_issue_ids = bugfix_commit.szz_issue_ids
+                elif label == 'issueonly_bugfix':
+                    fixed_issue_ids = bugfix_commit.linked_issue_ids
                 else:
                     raise Exception('unknown label')
 
@@ -182,6 +203,10 @@ class InducingMiner:
                 issues = []
                 for issue_id in fixed_issue_ids:
                     issue = Issue.objects.get(id=issue_id)
+
+                    # issueonly_bugfix considers linked_issue_ids, those may contain non-bugs
+                    if label == 'issueonly_bugfix' and str(issue.issue_type).lower() != 'bug':
+                        continue
 
                     if not jira_is_resolved_and_fixed(issue):
                         continue
@@ -193,8 +218,15 @@ class InducingMiner:
 
                 suspect_boundary_date = self._find_boundary_date(issues, self._version_dates, affected_versions)
 
+                # if ignore refactorings
+                ignore_lines = False
+                if ignore_refactorings:
+                    # get lines where refactorings happened
+                    # pass them to the blame call
+                    ignore_lines = self.refactoring_lines(bugfix_commit.id, fa.id)
+
                 # find bug inducing commits, add to our list for this commit and file
-                for blame_commit, original_file in self._cg.blame(bugfix_commit.revision_hash, f.path, inducing_strategy):
+                for blame_commit, original_file in self._cg.blame(bugfix_commit.revision_hash, f.path, inducing_strategy, ignore_lines):
                     blame_c = Commit.objects.get(vcs_system_id=self._vcs_id, revision_hash=blame_commit)
 
                     # every commit before our suspect boundary date is counted towards inducing

@@ -36,10 +36,14 @@ def main(args):
 
     # everything with label='validated_bugfix' uses commit.fixed_issue_ids
     # szz uses commit.szz_issue_ids
-    im.write_bug_inducing(label='adjustedszz_bugfix', inducing_strategy='all', java_only=False, affected_versions=False, name='SZZ')  # plain szz
-    im.write_bug_inducing(label='validated_bugfix', inducing_strategy='all', java_only=False, affected_versions=False, name='JLMIV')  # plain szz validated labels
-    im.write_bug_inducing(label='validated_bugfix', inducing_strategy='code_only', java_only=True, affected_versions=False, name='JLMIV+')  # improved szz validated labels
-    im.write_bug_inducing(label='validated_bugfix', inducing_strategy='code_only', java_only=True, affected_versions=True, name='JLMIV+AV')  # improved szz validated labels, affected versions
+    im.write_bug_inducing(label='adjustedszz_bugfix', inducing_strategy='all', java_only=False, affected_versions=False, ignore_refactorings=False, name='SZZ')  # plain szz
+    im.write_bug_inducing(label='issueonly_bugfix', inducing_strategy='code_only', java_only=True, affected_versions=False, ignore_refactorings=True, name='JL+R')  # best automatic szz
+
+    im.write_bug_inducing(label='validated_bugfix', inducing_strategy='all', java_only=False, affected_versions=False, ignore_refactorings=False, name='JLMIV')  # plain szz validated labels
+    im.write_bug_inducing(label='validated_bugfix', inducing_strategy='code_only', java_only=True, affected_versions=False, ignore_refactorings=False, name='JLMIV+')  # improved szz validated labels
+    im.write_bug_inducing(label='validated_bugfix', inducing_strategy='code_only', java_only=True, affected_versions=True, ignore_refactorings=False, name='JLMIV+AV')  # improved szz validated labels, affected versions
+
+    im.write_bug_inducing(label='validated_bugfix', inducing_strategy='code_only', java_only=True, affected_versions=False, ignore_refactorings=True, name='JLMIV+R')  # improved szz validated labels, without refactorings
 
     end = timeit.default_timer() - start
     log.info("Finished inducingSHARK extraction in {:.5f}s".format(end))

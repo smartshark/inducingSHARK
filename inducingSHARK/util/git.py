@@ -102,11 +102,13 @@ class CollectGit(object):
                     added += line[1:].strip()
         return removed == added
 
-    def _blame_lines(self, revision_hash, filepath, strategy):
+    def _blame_lines(self, revision_hash, filepath, strategy, ignore_lines=False):
         """We want to find changed lines for one file in one commit (from the previous commit).
 
         For this we are iterating over the diff and counting the lines that are deleted (changed) from the original file.
         We ignore all added lines.
+
+        ignore_lines is already specific to all changed hunks of the file for which blame_lines is called
         """
         changed_lines = []
         if revision_hash not in self._hunks.keys():
@@ -126,11 +128,25 @@ class CollectGit(object):
                 if dt not in changed_lines and dt[1]:
                     if strategy == 'code_only' and dt[1].startswith(('//', '/*', '*')):
                         continue
+
+                    # we may ignore lines, e.g., refactorings
+                    if ignore_lines:
+                        ignore = False
+                        for start_line, end_line in ignore_lines:
+                            if start_line <= dt[0] <= end_line:
+                                ignore = True
+                                break
+                        
+                        # if we hit the line in our ignore list we continue to the next
+                        if ignore:
+                            # self._log.warn('ignore line {} in file {} in commit {} because of refactoring detection'.format(dt[0], filepath, revision_hash))
+                            continue
+
                     changed_lines.append(dt)
 
         return changed_lines
 
-    def blame(self, revision_hash, filepath, strategy='code_only'):
+    def blame(self, revision_hash, filepath, strategy='code_only', ignore_lines=False):
         """Collect a list of commits where the given revision and file were last changed.
 
         Uses git blame.
@@ -162,7 +178,7 @@ class CollectGit(object):
             self._log.debug('skipping blame on revision: {} because it is a merge commit'.format(revision_hash))
             return []
 
-        changed_lines = self._blame_lines(revision_hash, filepath, strategy)
+        changed_lines = self._blame_lines(revision_hash, filepath, strategy, ignore_lines)
         parent_commit = self._repo.revparse_single('{}^'.format(revision_hash))
 
         blame = self._repo.blame(filepath, flags=GIT_BLAME_TRACK_COPIES_SAME_FILE, newest_commit=parent_commit.hex)
