@@ -43,6 +43,8 @@ def main(args):
     im.write_bug_inducing(label='validated_bugfix', inducing_strategy='code_only', java_only=True, affected_versions=False, ignore_refactorings=False, name='JLMIV+')  # improved szz validated labels
     im.write_bug_inducing(label='validated_bugfix', inducing_strategy='code_only', java_only=True, affected_versions=True, ignore_refactorings=False, name='JLMIV+AV')  # improved szz validated labels, affected versions
 
+    im.write_bug_inducing(label='validated_bugfix', inducing_strategy='code_only', java_only=True, affected_versions=True, ignore_refactorings=True, name='JLMIV+RAV')  # best + AV
+
     im.write_bug_inducing(label='validated_bugfix', inducing_strategy='code_only', java_only=True, affected_versions=False, ignore_refactorings=True, name='JLMIV+R')  # improved szz validated labels, without refactorings
 
     end = timeit.default_timer() - start
