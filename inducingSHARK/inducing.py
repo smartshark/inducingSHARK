@@ -156,7 +156,45 @@ class InducingMiner:
                     lines.append((h['start_line'], h['end_line']))
         return lines
 
-    def write_bug_inducing(self, label='validated_bugfix', inducing_strategy='code_only', java_only=True, affected_versions=False, ignore_refactorings=True, name=None):
+    def bug_fixing_lines(self, file_action_id):
+        """Return lines which are validated as bug-fixing."""
+        lines = []
+        for h in Hunk.objects.filter(file_action_id=file_action_id):
+            _, del_lines = self._transform_bugfix_lines(h)
+            lines += del_lines
+        return lines
+
+    def _transform_bugfix_lines(self, hunk):
+        """Transform validated hunk lines to file line numbers."""
+        added_lines = []
+        deleted_lines = []
+
+        del_line = hunk['old_start']
+        add_line = hunk['new_start']
+
+        bugfix_lines_added = []
+        bugfix_lines_deleted = []
+        for hunk_line, line in enumerate(hunk['content'].split('\n')):
+
+            tmp = line[1:].strip()
+
+            if line.startswith('+'):
+                added_lines.append((add_line, tmp))
+                if hunk_line in hunk['lines_verified']['bug']:
+                    bugfix_lines_added.append(add_line)
+                del_line -= 1
+            if line.startswith('-'):
+                deleted_lines.append((del_line, tmp))
+                if hunk_line in hunk['lines_verified']['bug']:
+                    bugfix_lines_deleted.append(del_line)
+                add_line -= 1
+
+            del_line += 1
+            add_line += 1
+
+        return bugfix_lines_added, bugfix_lines_deleted
+
+    def write_bug_inducing(self, label='validated_bugfix', inducing_strategy='code_only', java_only=True, affected_versions=False, ignore_refactorings=True, name=None, only_validated_bugfix_lines=False):
         """Write bug inducing information into FileAction.
 
         1. get all commits that are bug-fixing
@@ -224,9 +262,13 @@ class InducingMiner:
                     # get lines where refactorings happened
                     # pass them to the blame call
                     ignore_lines = self.refactoring_lines(bugfix_commit.id, fa.id)
+                
+                validated_bugfix_lines = False
+                if only_validated_bugfix_lines:
+                    validated_bugfix_lines = self.bug_fixing_lines(fa.id)
 
                 # find bug inducing commits, add to our list for this commit and file
-                for blame_commit, original_file in self._cg.blame(bugfix_commit.revision_hash, f.path, inducing_strategy, ignore_lines):
+                for blame_commit, original_file in self._cg.blame(bugfix_commit.revision_hash, f.path, inducing_strategy, ignore_lines, validated_bugfix_lines):
                     blame_c = Commit.objects.get(vcs_system_id=self._vcs_id, revision_hash=blame_commit)
 
                     # every commit before our suspect boundary date is counted towards inducing

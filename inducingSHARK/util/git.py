@@ -102,7 +102,7 @@ class CollectGit(object):
                     added += line[1:].strip()
         return removed == added
 
-    def _blame_lines(self, revision_hash, filepath, strategy, ignore_lines=False):
+    def _blame_lines(self, revision_hash, filepath, strategy, ignore_lines=False, validated_bugfix_lines=False):
         """We want to find changed lines for one file in one commit (from the previous commit).
 
         For this we are iterating over the diff and counting the lines that are deleted (changed) from the original file.
@@ -129,6 +129,11 @@ class CollectGit(object):
                     if strategy == 'code_only' and dt[1].startswith(('//', '/*', '*')):
                         continue
 
+                    # we may only want validated lines
+                    if validated_bugfix_lines:
+                        if dt[0] not in validated_bugfix_lines:
+                            continue
+
                     # we may ignore lines, e.g., refactorings
                     if ignore_lines:
                         ignore = False
@@ -146,7 +151,7 @@ class CollectGit(object):
 
         return changed_lines
 
-    def blame(self, revision_hash, filepath, strategy='code_only', ignore_lines=False):
+    def blame(self, revision_hash, filepath, strategy='code_only', ignore_lines=False, validated_bugfix_lines=False):
         """Collect a list of commits where the given revision and file were last changed.
 
         Uses git blame.
@@ -178,7 +183,7 @@ class CollectGit(object):
             self._log.debug('skipping blame on revision: {} because it is a merge commit'.format(revision_hash))
             return []
 
-        changed_lines = self._blame_lines(revision_hash, filepath, strategy, ignore_lines)
+        changed_lines = self._blame_lines(revision_hash, filepath, strategy, ignore_lines, validated_bugfix_lines)
         parent_commit = self._repo.revparse_single('{}^'.format(revision_hash))
 
         blame = self._repo.blame(filepath, flags=GIT_BLAME_TRACK_COPIES_SAME_FILE, newest_commit=parent_commit.hex)
