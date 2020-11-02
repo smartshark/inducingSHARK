@@ -180,12 +180,12 @@ class InducingMiner:
 
             if line.startswith('+'):
                 added_lines.append((add_line, tmp))
-                if hunk_line in hunk['lines_verified']['bug']:
+                if 'bug' in hunk['lines_verified'].keys() and hunk_line in hunk['lines_verified']['bug']:
                     bugfix_lines_added.append(add_line)
                 del_line -= 1
             if line.startswith('-'):
                 deleted_lines.append((del_line, tmp))
-                if hunk_line in hunk['lines_verified']['bug']:
+                if 'bug' in hunk['lines_verified'].keys() and hunk_line in hunk['lines_verified']['bug']:
                     bugfix_lines_deleted.append(del_line)
                 add_line -= 1
 
@@ -262,7 +262,7 @@ class InducingMiner:
                     # get lines where refactorings happened
                     # pass them to the blame call
                     ignore_lines = self.refactoring_lines(bugfix_commit.id, fa.id)
-                
+
                 validated_bugfix_lines = False
                 if only_validated_bugfix_lines:
                     validated_bugfix_lines = self.bug_fixing_lines(fa.id)

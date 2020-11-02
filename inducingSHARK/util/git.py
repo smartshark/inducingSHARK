@@ -141,7 +141,7 @@ class CollectGit(object):
                             if start_line <= dt[0] <= end_line:
                                 ignore = True
                                 break
-                        
+
                         # if we hit the line in our ignore list we continue to the next
                         if ignore:
                             # self._log.warn('ignore line {} in file {} in commit {} because of refactoring detection'.format(dt[0], filepath, revision_hash))
