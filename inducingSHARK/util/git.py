@@ -130,7 +130,7 @@ class CollectGit(object):
                         continue
 
                     # we may only want validated lines
-                    if validated_bugfix_lines:
+                    if validated_bugfix_lines is not False:
                         if dt[0] not in validated_bugfix_lines:
                             continue
 

@@ -180,12 +180,12 @@ class InducingMiner:
 
             if line.startswith('+'):
                 added_lines.append((add_line, tmp))
-                if 'bug' in hunk['lines_verified'].keys() and hunk_line in hunk['lines_verified']['bug']:
+                if 'bugfix' in hunk['lines_verified'].keys() and hunk_line in hunk['lines_verified']['bugfix']:
                     bugfix_lines_added.append(add_line)
                 del_line -= 1
             if line.startswith('-'):
                 deleted_lines.append((del_line, tmp))
-                if 'bug' in hunk['lines_verified'].keys() and hunk_line in hunk['lines_verified']['bug']:
+                if 'bugfix' in hunk['lines_verified'].keys() and hunk_line in hunk['lines_verified']['bugfix']:
                     bugfix_lines_deleted.append(del_line)
                 add_line -= 1
 
@@ -248,6 +248,13 @@ class InducingMiner:
 
                     if not jira_is_resolved_and_fixed(issue):
                         continue
+
+                    # in case of validated_bugfix we only want issues of the type bug
+                    if label == 'validated_bugfix':
+                        if not issue.issue_type_verified:
+                            continue
+                        if not issue.issue_type_verified.lower() != 'bug':
+                            continue
                     issues.append(issue)
 
                 if not issues:
