@@ -49,6 +49,8 @@ def main(args):
 
     im.write_bug_inducing(label='validated_bugfix', inducing_strategy='code_only', java_only=True, affected_versions=False, ignore_refactorings=False, name='JLMIVLV', only_validated_bugfix_lines=True)  # improved szz validated labels, only validated lines
 
+    im.write_bug_inducing(label='issuefasttext_bugfix', inducing_strategy='code_only', java_only=True, affected_versions=False, ignore_refactorings=True, name='JLIP+R')
+
     end = timeit.default_timer() - start
     log.info("Finished inducingSHARK extraction in {:.5f}s".format(end))
 

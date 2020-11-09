@@ -214,6 +214,8 @@ class InducingMiner:
             params['szz_issue_ids__0__exists'] = True
         elif label == 'issueonly_bugfix':
             params['linked_issue_ids__0__exists'] = True
+        elif label == 'issuefasttext_bugfix':
+            params['linked_issue_ids__0__exists'] = True
         else:
             raise Exception('unknown label')
 
@@ -233,6 +235,8 @@ class InducingMiner:
                 elif label == 'adjustedszz_bugfix':
                     fixed_issue_ids = bugfix_commit.szz_issue_ids
                 elif label == 'issueonly_bugfix':
+                    fixed_issue_ids = bugfix_commit.linked_issue_ids
+                elif label == 'issuefasttext_bugfix':
                     fixed_issue_ids = bugfix_commit.linked_issue_ids
                 else:
                     raise Exception('unknown label')
