@@ -244,7 +244,10 @@ class InducingMiner:
                 # only issues that are really closed and fixed:
                 issues = []
                 for issue_id in fixed_issue_ids:
-                    issue = Issue.objects.get(id=issue_id)
+                    try:
+                        issue = Issue.objects.get(id=issue_id)
+                    except Issue.DoesNotExist:
+                        continue
 
                     # issueonly_bugfix considers linked_issue_ids, those may contain non-bugs
                     if label == 'issueonly_bugfix' and str(issue.issue_type).lower() != 'bug':
