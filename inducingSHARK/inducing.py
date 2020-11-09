@@ -169,23 +169,23 @@ class InducingMiner:
         added_lines = []
         deleted_lines = []
 
-        del_line = hunk['old_start']
-        add_line = hunk['new_start']
+        del_line = hunk.old_start
+        add_line = hunk.new_start
 
         bugfix_lines_added = []
         bugfix_lines_deleted = []
-        for hunk_line, line in enumerate(hunk['content'].split('\n')):
+        for hunk_line, line in enumerate(hunk.content.split('\n')):
 
             tmp = line[1:].strip()
 
             if line.startswith('+'):
                 added_lines.append((add_line, tmp))
-                if 'bugfix' in hunk['lines_verified'].keys() and hunk_line in hunk['lines_verified']['bugfix']:
+                if 'bugfix' in hunk.lines_verified.keys() and hunk_line in hunk.lines_verified['bugfix']:
                     bugfix_lines_added.append(add_line)
                 del_line -= 1
             if line.startswith('-'):
                 deleted_lines.append((del_line, tmp))
-                if 'bugfix' in hunk['lines_verified'].keys() and hunk_line in hunk['lines_verified']['bugfix']:
+                if 'bugfix' in hunk.lines_verified.keys() and hunk_line in hunk.lines_verified['bugfix']:
                     bugfix_lines_deleted.append(del_line)
                 add_line -= 1
 
@@ -249,12 +249,10 @@ class InducingMiner:
                     if not jira_is_resolved_and_fixed(issue):
                         continue
 
-                    # in case of validated_bugfix we only want issues of the type bug
                     if label == 'validated_bugfix':
-                        if not issue.issue_type_verified:
+                        if not issue.issue_type_verified or issue.issue_type_verified.lower() != 'bug':
                             continue
-                        if not issue.issue_type_verified.lower() != 'bug':
-                            continue
+
                     issues.append(issue)
 
                 if not issues:
