@@ -63,7 +63,7 @@ class InducingMiner:
         # TODO: this will probably not work in every case
         repo_name = vcs.url.split('/')[-1].split('.')[0]
         self._repo_path = '{}/{}/'.format(target_path, repo_name)
-        self._log.debug('using path %s', self._repo_path)
+        self._log.info('using path %s', self._repo_path)
 
         # remove tarfile
         os.remove(fname)
