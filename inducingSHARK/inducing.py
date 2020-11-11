@@ -60,14 +60,9 @@ class InducingMiner:
         with tarfile.open(fname, "r:gz") as tar_gz:
             tar_gz.extractall(target_path)
 
-        # repo path needs to be the repository, we need that last part in case we extract the tar.gz
-        # path = None
-        # for p in os.listdir(target_path):
-        #     if p not in ['.', '..']:
-        #         path = p
-        # if path:
-        #     self._repo_path += '{}/'.format(path)
+        # TODO: this will probably not work in every case
         self._repo_path = '{}/{}/'.format(target_path, project_name)
+        self._log.debug('using path %s', self._repo_path)
 
         # remove tarfile
         os.remove(fname)
