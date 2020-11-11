@@ -61,12 +61,12 @@ class InducingMiner:
             tar_gz.extractall(target_path)
 
         # repo path needs to be the repository, we need that last part in case we extract the tar.gz
-        path = None
-        for p in os.listdir(target_path):
-            if p not in ['.', '..']:
-                path = p
-        if path:
-            self._repo_path += '{}/'.format(path)
+        # path = None
+        # for p in os.listdir(target_path):
+        #     if p not in ['.', '..']:
+        #         path = p
+        # if path:
+        #     self._repo_path += '{}/'.format(path)
 
         # remove tarfile
         os.remove(fname)
