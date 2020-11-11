@@ -61,7 +61,7 @@ def main(args):
         input_path = tempfile.TemporaryDirectory(dir='/dev/shm')
         log.info('creating temporary directory %s', input_path.name)
 
-    run_inducing(log, input_path, args)
+    run_inducing(log, input_path.name, args)
 
     # also need to cleanup after
     if not args.input:
