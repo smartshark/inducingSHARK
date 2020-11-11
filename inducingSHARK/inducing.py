@@ -61,7 +61,8 @@ class InducingMiner:
             tar_gz.extractall(target_path)
 
         # TODO: this will probably not work in every case
-        self._repo_path = '{}/{}/'.format(target_path, project_name)
+        repo_name = vcs.url.split('/')[-1].split('.')[0]
+        self._repo_path = '{}/{}/'.format(target_path, repo_name)
         self._log.debug('using path %s', self._repo_path)
 
         # remove tarfile
