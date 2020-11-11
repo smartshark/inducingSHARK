@@ -44,6 +44,8 @@ class InducingMiner:
     def extract_repository(self, vcs, target_path, project_name):
         # fetch file
         repository = vcs.repository_file
+        if not target_path.endswith('/'):
+            target_path += '/'
 
         if repository.grid_id is None:
             raise Exception('no repository file for project!')
