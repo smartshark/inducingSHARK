@@ -67,6 +67,7 @@ class InducingMiner:
         #         path = p
         # if path:
         #     self._repo_path += '{}/'.format(path)
+        self._repo_path += '{}/{}/'.format(target_path, project_name)
 
         # remove tarfile
         os.remove(fname)
