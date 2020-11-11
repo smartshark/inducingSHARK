@@ -59,7 +59,7 @@ def main(args):
     # If repo path is not set, we fetch the stored data from the database and put it into an temporary folder in the ram disc
     if not args.input:
         input_path = tempfile.TemporaryDirectory(dir='/dev/shm')
-        log.info('creating temporary directory %s', input_path)
+        log.info('creating temporary directory %s', input_path.name)
 
     run_inducing(log, input_path, args)
 
