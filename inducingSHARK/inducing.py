@@ -1,4 +1,6 @@
 #!/usr/bin/env python
+import os
+import tarfile
 
 from mongoengine import connect
 
@@ -11,7 +13,7 @@ from util.git import CollectGit
 class InducingMiner:
     """Mine inducing commits with the help of CollectGit and blame."""
 
-    def __init__(self, logger, database, user, password, host, port, authentication, ssl, project_name, vcs_url, repo_path):
+    def __init__(self, logger, database, user, password, host, port, authentication, ssl, project_name, vcs_url, repo_path, repo_from_db=False):
         self._log = logger
         self._repo_path = repo_path
         self._project_name = project_name
@@ -20,7 +22,12 @@ class InducingMiner:
         connect(database, host=uri)
 
         pr = Project.objects.get(name=project_name)
-        vcs = VCSSystem.objects.get(project_id=pr.id, url=vcs_url)
+
+        if vcs_url:
+            vcs = VCSSystem.objects.get(project_id=pr.id, url=vcs_url)
+        else:
+            vcs = VCSSystem.objects.get(project_id=pr.id)
+
         its = IssueSystem.objects.get(project_id=pr.id)
 
         if 'jira' not in its.url:
@@ -29,6 +36,38 @@ class InducingMiner:
         self._vcs_id = vcs.id
         self._its_id = its.id
         self._jira_key = its.url.split('project=')[-1]
+
+        # we need to extract the repository from the MongoDB
+        if repo_from_db:
+            self.extract_repository(vcs, repo_path, project_name)
+
+    def extract_repository(self, vcs, target_path, project_name):
+        # fetch file
+        repository = vcs.repository_file
+
+        if repository.grid_id is None:
+            raise Exception('no repository file for project!')
+
+        fname = '{}.tar.gz'.format(project_name)
+
+        # extract from gridfs
+        with open(fname, 'wb') as f:
+            f.write(repository.read())
+
+        # extract tarfile
+        with tarfile.open(fname, "r:gz") as tar_gz:
+            tar_gz.extractall(target_path)
+
+        # repo path needs to be the repository, we need that last part in case we extract the tar.gz
+        path = None
+        for p in os.listdir(target_path):
+            if p not in ['.', '..']:
+                path = p
+        if path:
+            self._repo_path += '{}/'.format(path)
+
+        # remove tarfile
+        os.remove(fname)
 
     def collect(self):
         """Collect inducing commits and write them to the database."""
@@ -250,7 +289,7 @@ class InducingMiner:
                         continue
 
                     # issueonly_bugfix considers linked_issue_ids, those may contain non-bugs
-                    if label == 'issueonly_bugfix' and str(issue.issue_type).lower() != 'bug':
+                    if label in ['issueonly_bugfix', 'adjustedszz_bugfix', 'issuefasttext_bugfix'] and str(issue.issue_type).lower() != 'bug':
                         continue
 
                     if not jira_is_resolved_and_fixed(issue):
