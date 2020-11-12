@@ -10,9 +10,9 @@ if not sys.version_info[0] == 3:
 
 setup(
     name='inducingSHARK',
-    version='1.0.2',
+    version='1.0.3',
     description='Find bug-inducing commits.',
-    install_requires=['pycoshark>=1.2.6', 'pygit2==0.26.2', 'networkx>=2.2'],
+    install_requires=['pycoshark>=1.3.1', 'pygit2==0.26.2', 'networkx>=2.2'],
     author='atrautsch',
     author_email='alexander.trautsch@stud.uni-goettingen.de',
     url='https://github.com/smartshark/inducingSHARK',
