@@ -58,14 +58,15 @@ def main(args):
 
     # If repo path is not set, we fetch the stored data from the database and put it into an temporary folder in the ram disc
     if not args.input:
-        input_path = tempfile.TemporaryDirectory(dir='/dev/shm')
-        log.info('creating temporary directory %s', input_path.name)
+        tmpdir = tempfile.TemporaryDirectory(dir='/dev/shm')
+        input_path = tmpdir.name
+        log.info('creating temporary directory %s', input_path)
 
-    run_inducing(log, input_path.name, args)
+    run_inducing(log, input_path, args)
 
     # also need to cleanup after
     if not args.input:
-        input_path.cleanup()
+        tmpdir.cleanup()
 
     end = timeit.default_timer() - start
     log.info("Finished inducingSHARK extraction in {:.5f}s".format(end))
