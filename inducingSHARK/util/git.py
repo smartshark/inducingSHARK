@@ -110,8 +110,11 @@ class CollectGit(object):
 
         ignore_lines is already specific to all changed hunks of the file for which blame_lines is called
         """
+        c = self._repo.revparse_single('{}'.format(revision_hash))
+        self._hunks[revision_hash] = self._get_hunks(c)
+
         changed_lines = []
-        if revision_hash not in self._hunks.keys():
+        if revision_hash not in self._hunks.keys() or not self._hunks[revision_hash]:
             return changed_lines
 
         for h in self._hunks[revision_hash]:
@@ -309,6 +312,67 @@ class CollectGit(object):
 
         return files
 
+    def _get_hunks(self, commit):
+        diffs = []
+        hunks = []
+
+        # for initial commit (or orphan commits) pygit2 needs some special attention
+        initial = False
+        if not commit.parents:
+            initial = True
+            diffs.append((None, commit.tree.diff_to_tree(context_lines=0, interhunk_lines=1)))
+
+        # we may have multiple parents (merge commit)
+        for parent in commit.parents:
+            # we need all information from each parent because in a merge each parent may add different files
+            tmp = self._repo.diff(parent, commit, context_lines=0, interhunk_lines=1)
+            tmp.find_similar(self._dopts, self._SIMILARITY_THRESHOLD, self._SIMILARITY_THRESHOLD)
+            diffs.append((parent.hex, tmp))
+
+        for parent, diff in diffs:
+            checked_paths = set()
+            for patch in diff:
+                if patch.delta.new_file.path in checked_paths:
+                    self._log.warn('already have {} in checked_paths'.format(patch.delta.new_file.path))
+                    continue
+                mode = 'X'
+                if patch.delta.status == 1:
+                    mode = 'A'
+                elif patch.delta.status == 2:
+                    mode = 'D'
+                elif patch.delta.status == 3:
+                    mode = 'M'
+                elif patch.delta.status == 4:
+                    mode = 'R'
+                elif patch.delta.status == 5:
+                    mode = 'C'
+                elif patch.delta.status == 6:
+                    mode = 'I'
+                elif patch.delta.status == 7:
+                    mode = 'U'
+                elif patch.delta.status == 8:
+                    mode = 'T'
+
+                # diff to tree gives D for inital commit otherwise
+                if initial:
+                    mode = 'A'
+
+                # we may have hunks to add
+                if patch.hunks and commit.hex not in self._hunks.keys():
+                    self._hunks[commit.hex] = []
+
+                # add hunks
+                for hunk in patch.hunks:
+                    # initial is special case
+                    if initial:
+                        content = ''.join(['+' + l.content for l in hunk.lines])
+                        hunks.append({'header': hunk.header, 'new_file': patch.delta.new_file.path, 'new_start': hunk.old_start, 'new_lines': hunk.old_lines, 'old_start': hunk.new_start, 'old_lines': hunk.new_lines, 'content': content})
+                    else:
+                        content = ''.join([l.origin + l.content for l in hunk.lines])
+                        hunks.append({'header': hunk.header, 'new_file': patch.delta.new_file.path, 'new_start': hunk.new_start, 'new_lines': hunk.new_lines, 'old_start': hunk.old_start, 'old_lines': hunk.old_lines, 'content': content})
+        return hunks
+
+
     def _changed_files(self, commit):
         changed_files = []
         diffs = []
@@ -415,30 +479,33 @@ class CollectGit(object):
                 self._graph.add_node(c.hex)
 
                 # branch stuff, used for traversing backwards for tags in svn->git conversions
-                if c.hex not in self._branches.keys():
-                    self._branches[c.hex] = []
+                # if c.hex not in self._branches.keys():
+                #     self._branches[c.hex] = []
 
                 # what about tags which are also on branches?
-                if is_tag:
-                    self._tags[c.hex] = branch.name
-                else:
-                    self._branches[c.hex].append(branch.branch_name)
+                # if is_tag:
+                #     self._tags[c.hex] = branch.name
+                # else:
+                #     self._branches[c.hex].append(branch.branch_name)
 
                 # add msg
-                self._msgs[c.hex] = c.message
+                # self._msgs[c.hex] = c.message
 
                 # add days, we use this later for lookup
-                day = str(datetime.fromtimestamp(c.commit_time, tz=timezone.utc).date())
-                if day not in self._days.keys():
-                    self._days[day] = []
-                self._days[day].append(c.hex)
+                # day = str(datetime.fromtimestamp(c.commit_time, tz=timezone.utc).date())
+                # if day not in self._days.keys():
+                #     self._days[day] = []
+                # self._days[day].append(c.hex)
 
                 # add for convenience for OntdekBaanBfs
-                self._cdays[c.hex] = day
+                # self._cdays[c.hex] = day
 
                 # add changed files per node
-                if c.hex not in self._file_actions.keys():
-                    self._file_actions[c.hex] = self._changed_files(c)
+                # if c.hex not in self._file_actions.keys():
+                #     self._file_actions[c.hex] = self._changed_files(c)
+
+                # still too expensive
+                # self._create_hunks(c)
 
             # add edges to graph
             for c in self._repo.walk(branch.target):

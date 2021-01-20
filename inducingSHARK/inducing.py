@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 from mongoengine import connect
+from pympler import asizeof
 
 from pycoshark.mongomodels import Project, VCSSystem, File, Commit, FileAction, Issue, IssueSystem, Refactoring, Hunk
 from pycoshark.utils import create_mongodb_uri_string, git_tag_filter, get_affected_versions, java_filename_filter, jira_is_resolved_and_fixed
@@ -45,6 +46,7 @@ class InducingMiner:
             for fa in FileAction.objects.filter(commit_id=c.id):
                 fa.induces = []  # this deletes everything, including previous runs with a different label
                 fa.save()
+        self._log.info('finished setting all FileAction.induces to []')
 
     def _find_boundary_date(self, issues, version_dates, affected_versions):
         """Find suspect boundary date.
@@ -299,6 +301,8 @@ class InducingMiner:
 
                             if key not in all_changes.keys():
                                 all_changes[key] = {'change_file_action_id': fa.id, 'inducing_file_action': blame_fa.id, 'label': label, 'szz_type': szz_type, 'inducing_strategy': inducing_strategy}
+
+            self._log.info('size of all changes: %s mb', asizeof.asizeof(all_changes) / 1024 / 1024)
 
         # second run differenciate between hard and weak suspects
         new_types = {}

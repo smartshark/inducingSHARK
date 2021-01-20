@@ -6,6 +6,7 @@ import sys
 import logging
 import timeit
 
+from pympler import asizeof
 from pycoshark.utils import get_base_argparser
 from inducing import InducingMiner
 
@@ -34,6 +35,7 @@ def main(args):
     im = InducingMiner(log, args.db_database, args.db_user, args.db_password, args.db_hostname, args.db_port, args.db_authentication, args.ssl, args.project_name, args.repository_url, args.input)
     im.collect()
 
+    log.info("memory for git: %s mb", asizeof.asizeof(im._cg) / 1024 / 1024)
     # everything with label='validated_bugfix' uses commit.fixed_issue_ids
     # szz uses commit.szz_issue_ids
     im.write_bug_inducing(label='adjustedszz_bugfix', inducing_strategy='all', java_only=False, affected_versions=False, ignore_refactorings=False, name='SZZ')  # plain szz
