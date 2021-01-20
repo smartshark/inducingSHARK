@@ -1,4 +1,6 @@
 #!/usr/bin/env python
+import os
+import tarfile
 
 from mongoengine import connect
 from pympler import asizeof
@@ -12,7 +14,7 @@ from util.git import CollectGit
 class InducingMiner:
     """Mine inducing commits with the help of CollectGit and blame."""
 
-    def __init__(self, logger, database, user, password, host, port, authentication, ssl, project_name, vcs_url, repo_path):
+    def __init__(self, logger, database, user, password, host, port, authentication, ssl, project_name, vcs_url, repo_path, repo_from_db=False):
         self._log = logger
         self._repo_path = repo_path
         self._project_name = project_name
@@ -21,7 +23,12 @@ class InducingMiner:
         connect(database, host=uri)
 
         pr = Project.objects.get(name=project_name)
-        vcs = VCSSystem.objects.get(project_id=pr.id, url=vcs_url)
+
+        if vcs_url:
+            vcs = VCSSystem.objects.get(project_id=pr.id, url=vcs_url)
+        else:
+            vcs = VCSSystem.objects.get(project_id=pr.id)
+
         its = IssueSystem.objects.get(project_id=pr.id)
 
         if 'jira' not in its.url:
@@ -30,6 +37,37 @@ class InducingMiner:
         self._vcs_id = vcs.id
         self._its_id = its.id
         self._jira_key = its.url.split('project=')[-1]
+
+        # we need to extract the repository from the MongoDB
+        if repo_from_db:
+            self.extract_repository(vcs, repo_path, project_name)
+
+    def extract_repository(self, vcs, target_path, project_name):
+        # fetch file
+        repository = vcs.repository_file
+        if not target_path.endswith('/'):
+            target_path += '/'
+
+        if repository.grid_id is None:
+            raise Exception('no repository file for project!')
+
+        fname = '{}.tar.gz'.format(project_name)
+
+        # extract from gridfs
+        with open(fname, 'wb') as f:
+            f.write(repository.read())
+
+        # extract tarfile
+        with tarfile.open(fname, "r:gz") as tar_gz:
+            tar_gz.extractall(target_path)
+
+        # TODO: this will probably not work in every case
+        repo_name = vcs.url.split('/')[-1].split('.')[0]
+        self._repo_path = '{}{}/'.format(target_path, repo_name)
+        self._log.info('using path %s', self._repo_path)
+
+        # remove tarfile
+        os.remove(fname)
 
     def collect(self):
         """Collect inducing commits and write them to the database."""
@@ -171,23 +209,23 @@ class InducingMiner:
         added_lines = []
         deleted_lines = []
 
-        del_line = hunk['old_start']
-        add_line = hunk['new_start']
+        del_line = hunk.old_start
+        add_line = hunk.new_start
 
         bugfix_lines_added = []
         bugfix_lines_deleted = []
-        for hunk_line, line in enumerate(hunk['content'].split('\n')):
+        for hunk_line, line in enumerate(hunk.content.split('\n')):
 
             tmp = line[1:].strip()
 
             if line.startswith('+'):
                 added_lines.append((add_line, tmp))
-                if 'bugfix' in hunk['lines_verified'].keys() and hunk_line in hunk['lines_verified']['bugfix']:
+                if 'bugfix' in hunk.lines_verified.keys() and hunk_line in hunk.lines_verified['bugfix']:
                     bugfix_lines_added.append(add_line)
                 del_line -= 1
             if line.startswith('-'):
                 deleted_lines.append((del_line, tmp))
-                if 'bugfix' in hunk['lines_verified'].keys() and hunk_line in hunk['lines_verified']['bugfix']:
+                if 'bugfix' in hunk.lines_verified.keys() and hunk_line in hunk.lines_verified['bugfix']:
                     bugfix_lines_deleted.append(del_line)
                 add_line -= 1
 
@@ -216,6 +254,8 @@ class InducingMiner:
             params['szz_issue_ids__0__exists'] = True
         elif label == 'issueonly_bugfix':
             params['linked_issue_ids__0__exists'] = True
+        elif label == 'issuefasttext_bugfix':
+            params['linked_issue_ids__0__exists'] = True
         else:
             raise Exception('unknown label')
 
@@ -236,27 +276,30 @@ class InducingMiner:
                     fixed_issue_ids = bugfix_commit.szz_issue_ids
                 elif label == 'issueonly_bugfix':
                     fixed_issue_ids = bugfix_commit.linked_issue_ids
+                elif label == 'issuefasttext_bugfix':
+                    fixed_issue_ids = bugfix_commit.linked_issue_ids
                 else:
                     raise Exception('unknown label')
 
                 # only issues that are really closed and fixed:
                 issues = []
                 for issue_id in fixed_issue_ids:
-                    issue = Issue.objects.get(id=issue_id)
+                    try:
+                        issue = Issue.objects.get(id=issue_id)
+                    except Issue.DoesNotExist:
+                        continue
 
                     # issueonly_bugfix considers linked_issue_ids, those may contain non-bugs
-                    if label == 'issueonly_bugfix' and str(issue.issue_type).lower() != 'bug':
+                    if label in ['issueonly_bugfix', 'adjustedszz_bugfix', 'issuefasttext_bugfix'] and str(issue.issue_type).lower() != 'bug':
                         continue
 
                     if not jira_is_resolved_and_fixed(issue):
                         continue
 
-                    # in case of validated_bugfix we only want issues of the type bug
                     if label == 'validated_bugfix':
-                        if not issue.issue_type_verified:
+                        if not issue.issue_type_verified or issue.issue_type_verified.lower() != 'bug':
                             continue
-                        if not issue.issue_type_verified.lower() != 'bug':
-                            continue
+
                     issues.append(issue)
 
                 if not issues:
