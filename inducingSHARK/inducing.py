@@ -262,7 +262,7 @@ class InducingMiner:
         all_changes = {}
 
         # fetch before instead of iterate over the cursor because of timeout
-        bugfix_commit_ids = Commit.objects.filter(**params).only('id').timeout(False)
+        bugfix_commit_ids = Commit.objects.filter(**params).only('id').values_list('id').timeout(False)
         for bugfix_commit_id in bugfix_commit_ids:
 
             bugfix_commit = Commit.objects.only('revision_hash', 'id', 'fixed_issue_ids', 'szz_issue_ids', 'linked_issue_ids', 'committer_date').get(id=bugfix_commit_id)
