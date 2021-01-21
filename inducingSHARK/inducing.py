@@ -326,7 +326,7 @@ class InducingMiner:
 
                 # find bug inducing commits, add to our list for this commit and file
                 for blame_commit, original_file in self._cg.blame(bugfix_commit.revision_hash, f.path, inducing_strategy, ignore_lines, validated_bugfix_lines):
-                    blame_c = Commit.objects.get(vcs_system_id=self._vcs_id, revision_hash=blame_commit)
+                    blame_c = Commit.objects.only('id', 'committer_date', 'labels').get(vcs_system_id=self._vcs_id, revision_hash=blame_commit)
 
                     # every commit before our suspect boundary date is counted towards inducing
                     if blame_c.committer_date < suspect_boundary_date:
@@ -350,7 +350,7 @@ class InducingMiner:
                             if key not in all_changes.keys():
                                 all_changes[key] = {'change_file_action_id': fa.id, 'inducing_file_action': blame_fa.id, 'label': label, 'szz_type': szz_type, 'inducing_strategy': inducing_strategy}
 
-            self._log.info('size of all changes: %s mb', asizeof.asizeof(all_changes) / 1024 / 1024)
+        self._log.info('size of all changes: %s mb', asizeof.asizeof(all_changes) / 1024 / 1024)
 
         # second run differenciate between hard and weak suspects
         new_types = {}
